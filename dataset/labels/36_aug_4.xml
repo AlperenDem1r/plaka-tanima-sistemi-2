@@ -1,0 +1,26 @@
+<annotation>
+	<folder>images</folder>
+	<filename>36_aug_4.jpg</filename>
+	<path>D:\OneDrive - Ataturk University\Belgeler\plaka-tanima-sistemi-2\dataset\images\36_aug_4.jpg</path>
+	<source>
+		<database>Unknown</database>
+	</source>
+	<size>
+		<width>1075</width>
+		<height>896</height>
+		<depth>3</depth>
+	</size>
+	<segmented>0</segmented>
+	<object>
+		<name>plaka</name>
+		<pose>Unspecified</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin>745</xmin>
+			<ymin>437</ymin>
+			<xmax>952</xmax>
+			<ymax>508</ymax>
+		</bndbox>
+	</object>
+</annotation>

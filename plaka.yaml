@@ -1,0 +1,8 @@
+path: D:/OneDrive - Ataturk University/Belgeler/plaka-tanima-sistemi-2/yolov8_dataset  # veri seti ana klasörü
+train: train/images  # eğitim görüntüleri
+val: valid/images    # doğrulama görüntüleri
+test: test/images    # test görüntüleri
+
+# Sınıflar
+names:
+  0: plaka 
