@@ -26,22 +26,28 @@ def add_noise(image, noise_factor=0.1):
     noisy_image = cv2.add(image, noise)
     return noisy_image
 
+def resize_image(image, scale):
+    """Görüntü boyutunu artırır"""
+    width = int(image.shape[1] * scale)
+    height = int(image.shape[0] * scale)
+    return cv2.resize(image, (width, height))
+
 def create_augmented_image(image, index):
     """Görüntünün artırılmış versiyonunu oluşturur"""
-    if index == 0:  # Döndürme +15
+    if index == 0:  # Boyut arttırma
+        return resize_image(image, 1.5)
+    elif index == 1:  # Gri tonlama
+        return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    elif index == 2:  # Binarizasyon
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        _, binary = cv2.threshold(gray, 128, 255, cv2.THRESH_BINARY)
+        return binary
+    elif index == 3:  # Açı değiştirme +15
         return rotate_image(image, 15)
-    elif index == 1:  # Döndürme -15
+    elif index == 4:  # Açı değiştirme -15
         return rotate_image(image, -15)
-    elif index == 2:  # Parlaklık artırma
-        return adjust_brightness(image, 1.3)
-    elif index == 3:  # Parlaklık azaltma
-        return adjust_brightness(image, 0.7)
-    elif index == 4:  # Gürültü ekleme
-        return add_noise(image)
-    else:  # Karışık efektler
-        img = rotate_image(image, 10)
-        img = adjust_brightness(img, 1.2)
-        return add_noise(img, 0.05)
+    else:
+        return image  # Diğer durumlar için orijinal görüntüyü döndür
 
 def augment_dataset(input_dir, output_dir, num_augmentations_per_image=6):
     """Veri setindeki her görüntü için veri artırma işlemi yapar"""
@@ -92,8 +98,8 @@ def augment_dataset(input_dir, output_dir, num_augmentations_per_image=6):
 if __name__ == "__main__":
     # Giriş ve çıkış dizinlerini belirle
     current_dir = Path.cwd()
-    input_directory = current_dir / "araba-veriseti"
-    output_directory = current_dir / "araba-veriseti-artirilmis"
+    input_directory = current_dir / "karakter-veriseti" / "arkaplan"
+    output_directory = current_dir / "karakter-veriseti-artirilm" / "arkaplan"
     
     print(f"Giriş dizini: {input_directory}")
     print(f"Çıkış dizini: {output_directory}")
