@@ -30,7 +30,7 @@ X = np.array(images)  # Görüntüleri numpy dizisine çevirir
 y = np.array(labels)  # Etiketleri numpy dizisine çevirir
 
 # Eğitim ve test setlerine ayırma
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)  # Veriyi eğitim ve test setlerine ayırır
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)  # Veriyi eğitim ve test setlerine ayırır
 
 # Random Forest modelini oluşturma ve eğitme
 model = RandomForestClassifier(n_estimators=100, random_state=42)  # Random Forest modelini oluşturur
@@ -44,4 +44,4 @@ accuracy = accuracy_score(y_test, y_pred)  # Modelin doğruluğunu hesaplar
 print(f'Model doğruluğu: {accuracy * 100:.2f}%')  # Doğruluğu ekrana yazdırır
 
 # Modeli .pkl dosyası olarak kaydetme
-joblib.dump(model, '3_random_forest_model.pkl')  # Eğitilmiş modeli dosyaya kaydeder 
+joblib.dump(model, '2random_forest_model.pkl')  # Eğitilmiş modeli dosyaya kaydeder 

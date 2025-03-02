@@ -14,7 +14,6 @@ Bu proje, fotoğraflardaki araba plakalarını tespit edip, metin olarak okumak 
 - **`plaka_tespit_test.py`**: Plaka tespit modelinin test edilmesi için kullanılan dosya.
 - **`train.py`**: Plaka tespit modelinin eğitimini gerçekleştiren dosya.
 - **`veri_artirma.py`**: Eğitim verilerini artırmak için kullanılan dosya.
-
 - **`split_dataset.py`**: Veri setini eğitim, doğrulama ve test setlerine ayıran dosya.
 - **`requirements.txt`**: Projede kullanılan Python kütüphanelerinin listesi.
 

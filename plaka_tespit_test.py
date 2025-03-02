@@ -1,6 +1,5 @@
 import cv2  # OpenCV kütüphanesini görüntü işleme için kullanır
 from ultralytics import YOLO  # YOLO modelini kullanmak için gerekli kütüphane
-import numpy as np  # Numpy kütüphanesini matematiksel işlemler için kullanır
 import time  # Zaman işlemleri için kullanılır
 import tkinter as tk  # Tkinter kütüphanesini GUI oluşturmak için kullanır
 from tkinter import filedialog, messagebox  # Dosya diyalogları ve mesaj kutuları için kullanılır
@@ -22,11 +21,11 @@ class PlakaTespitTest:
             return
 
         # Random Forest modelini yükleme
-        self.model_rf = joblib.load('random_forest_model.pkl')  # Eğitilmiş Random Forest modelini yükler
+        # self.model_rf = joblib.load('random_forest_model.pkl')  # Eğitilmiş Random Forest modelini yükler
 
         # Tkinter penceresi oluştur
         self.root = tk.Tk()  # Tkinter penceresini başlatır
-        self.root.title("Plaka Tespit Test")  # Pencere başlığını ayarlar
+        self.root.title("Plaka Tespit Uygulaması")  # Pencere başlığını ayarlar
         self.root.geometry("400x300")  # Pencere boyutunu ayarlar
         
         # Butonları oluştur

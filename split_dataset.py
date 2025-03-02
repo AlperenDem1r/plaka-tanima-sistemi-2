@@ -45,7 +45,6 @@ def split_dataset(images_dir, labels_dir, output_dir, train_ratio=0.7, valid_rat
         # Hedef klasörler
         set_images_dir = os.path.join(output_dir, set_name, 'images')  # Görüntü dosyaları için hedef dizin
         set_labels_dir = os.path.join(output_dir, set_name, 'labels')  # Etiket dosyaları için hedef dizin
-        
         # Klasörleri oluştur
         os.makedirs(set_images_dir, exist_ok=True)  # Görüntü dizinini oluşturur
         os.makedirs(set_labels_dir, exist_ok=True)  # Etiket dizinini oluşturur
