@@ -7,11 +7,27 @@ import os  # Dosya ve dizin işlemleri için kullanılır
 import joblib  # Modeli kaydetmek ve yüklemek için kullanılır
 import pytesseract  # OCR işlemleri için kullanılır
 import re  # Regüler ifadeler için kullanılır
+from datetime import datetime  # Tarih işlemleri için kullanılır
+from db_operations import PlakaTespitDB  # Yeni sınıfı içe aktar
 
 # Bu dosya, plaka tespit modelinin test edilmesi için kullanılır. Test verileri ile modelin doğruluğunu kontrol eder.
 
 class PlakaTespitTest:
+    """
+    Bu sınıf, plaka tespit sisteminin ana işlevselliğini sağlar.
+    Kamera, video ve fotoğraf üzerinde plaka tespiti yapabilir.
+    """
+    
     def __init__(self):
+        """
+        Sınıfın başlangıç ayarlarını yapar.
+        - Veritabanı bağlantısını kurar
+        - YOLO modelini yükler
+        - Arayüzü oluşturur
+        """
+        # Veritabanı işlemleri için sınıfı başlat
+        self.db = PlakaTespitDB()
+        
         # Model yükleme
         try:
             self.model = YOLO('plaka_tespit/plaka_model/weights/best.pt')  # YOLO modelini yükler
@@ -23,10 +39,13 @@ class PlakaTespitTest:
         # Random Forest modelini yükleme
         # self.model_rf = joblib.load('random_forest_model.pkl')  # Eğitilmiş Random Forest modelini yükler
 
+        # Son izinli plaka tespitinin zamanını tut
+        self.son_izinli_tespit_zamani = 0
+        
         # Tkinter penceresi oluştur
         self.root = tk.Tk()  # Tkinter penceresini başlatır
-        self.root.title("Plaka Tespit Uygulaması")  # Pencere başlığını ayarlar
-        self.root.geometry("400x300")  # Pencere boyutunu ayarlar
+        self.root.title("Plaka Tespit ve Kontrol Sistemi")  # Pencere başlığını ayarlar
+        self.root.geometry("500x400")  # Pencere boyutunu ayarlar
         
         # Butonları oluştur
         self.create_widgets()  # Arayüz elemanlarını oluşturur
@@ -35,9 +54,11 @@ class PlakaTespitTest:
         self.root.mainloop()  # Tkinter döngüsünü başlatır
     
     def create_widgets(self):
-        """Arayüz elemanlarını oluştur"""
+        """
+        Grafiksel arayüzdeki butonları ve diğer öğeleri oluşturur.
+        """
         # Başlık
-        title = tk.Label(self.root, text="Plaka Tespit Sistemi", font=("Arial", 16))  # Başlık etiketi oluşturur
+        title = tk.Label(self.root, text="Plaka Tespit ve Kontrol Sistemi", font=("Arial", 16))  # Başlık etiketi oluşturur
         title.pack(pady=20)  # Başlık etiketini yerleştirir
         
         # Kamera butonu
@@ -64,8 +85,57 @@ class PlakaTespitTest:
                            width=20, height=2)  # Çıkış butonu oluşturur
         exit_btn.pack(pady=10)  # Butonu yerleştirir
     
+    def plaka_metni_duzenle(self, metin):
+        """
+        OCR ile okunan plaka metnini düzenler.
+        
+        Parametreler:
+            metin (str): Düzenlenecek plaka metni
+            
+        Dönüş:
+            str: Düzenlenmiş plaka metni
+        """
+        # Boşlukları temizle
+        metin = metin.strip()
+        
+        # Başında 3 sayı varsa, 2. ve 3. sayıları al
+        if re.match(r'^(\d{3})', metin):
+            metin = metin[1:3] + metin[3:]
+        
+        # Özel karakterleri temizle
+        metin = re.sub(r'[^A-Za-z0-9 ]+', '', metin)
+        
+        # 8 ile başlıyorsa 3 ile değiştir
+        if metin.startswith('8'):
+            metin = '3' + metin[1:]
+        
+        # Plaka formatını düzelt
+        if len(metin.split()) == 3:
+            parcalar = metin.split()
+            # Sayıları ve harfleri düzelt
+            parcalar[0] = parcalar[0].replace('B', '8').replace('I', '1').replace('O', '0').replace('S', '5').replace('h', '4')
+            parcalar[1] = parcalar[1].replace('8', 'B').replace('1', 'I').replace('0', 'O').replace('5', 'S').replace('4', 'H')
+            parcalar[2] = parcalar[2].replace('B', '8').replace('I', '1').replace('O', '0').replace('S', '5').replace('h', '4')
+            metin = ' '.join(parcalar)
+        
+        # Uzunluğu kontrol et
+        if len(metin.replace(' ', '')) > 8:
+            metin = metin[:8]
+        else:
+            metin = metin[:10]
+        
+        return metin
+    
     def tespit_et(self, frame):
-        """Görüntü üzerinde plaka tespiti yapar"""
+        """
+        Görüntü üzerinde plaka tespiti yapar.
+        
+        Parametreler:
+            frame: İşlenecek görüntü
+            
+        Dönüş:
+            tuple: (İşlenmiş görüntü, Tespit edilen plaka sayısı)
+        """
         # Tahmin yap
         results = self.model.predict(frame, conf=0.25)  # Görüntüde plaka tespiti yapar
         
@@ -85,48 +155,70 @@ class PlakaTespitTest:
                 plaka_text = pytesseract.image_to_string(plaka_region, config='--psm 8')  # Plaka metnini okur
 
                 # Plaka metnini düzenleme
-                plaka_text = plaka_text.strip()  # Plaka metnindeki boşlukları temizler
+                plaka_text = self.plaka_metni_duzenle(plaka_text)
+                plaka_text_sade = plaka_text.replace(' ', '')
+                print(plaka_text_sade)# Plaka metnindeki boşlukları kaldır      
+                # Plaka kontrolü ve kayıt
+                if plaka_text_sade and len(plaka_text_sade) >= 4:  # En az 4 karakter varsa işlem yap
+                    # İzin kontrolü
+                    izin_durumu = self.db.plaka_izin_kontrol(plaka_text_sade)
+                    # Veritabanına kaydet
+                    plaka_id, self.son_izinli_tespit_zamani = self.db.plaka_kaydet(
+                        plaka_text_sade, 
+                        izin_durumu, 
+                        self.son_izinli_tespit_zamani
+                    )
+                    
+                    # Görüntüye plaka ve durum bilgisini ekle
+                    durum_renk = (0, 255, 0) if izin_durumu else (0, 0, 255)  # Yeşil: İzinli, Kırmızı: İzinsiz
+                    durum_text = "IZINLI ve GIREBILIR" if izin_durumu else "IZINSIZ ve GIREMEZ"
+                    
+                    # Kutu çizme
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), durum_renk, 2)
+                    # Plaka ve durum bilgisini gösterme
+                    text_position = (x1-5, y1-10)  # Plaka metninin konumunu ayarlar
+                    if text_position[1] < 0:
+                        text_position = (x1+15, y1 + 20)  # Eğer metin üstte kalıyorsa, aşağıya kaydır
+                    # Plaka metnini kontrol etme ve düzeltme
+                    if len(plaka_text.split()) == 3:  # Eğer plaka metni 3 parçadan oluşuyorsa
+                        parts = plaka_text.split()  # Plaka metnini parçalara ayırır
+                        # 1. bölümdeki sayıları kontrol et
+                        parts[0] = parts[0].replace('B', '8').replace('I', '1').replace('O', '0').replace('S', '5').replace('h', '4')  # Karakter düzeltmeleri yapar
+                        # 2. bölümdeki harfleri kontrol et
+                        parts[1] = parts[1].replace('8', 'B').replace('1', 'I').replace('0', 'O').replace('5', 'S').replace('4', 'H')  # Karakter düzeltmeleri yapar
+                        # 3. bölümdeki sayıları kontrol et
+                        parts[2] = parts[2].replace('B', '8').replace('I', '1').replace('O', '0').replace('S', '5').replace('h', '4')  # Karakter düzeltmeleri yapar
+                        # Düzgün plaka metnini birleştir
+                        plaka_text = ' '.join(parts)  # Plaka metnini birleştirir
 
-                # Başında 3 sayı varsa, 2. ve 3. sayıları al
-                if re.match(r'^(\d{3})', plaka_text):
-                    plaka_text = plaka_text[1:3] + plaka_text[3:]  # 2. ve 3. sayıları al
+                    # Plaka metnini boşluk karakteri hariç 8 karakterden azsa, 10 karakter ile sınırlama
+                    if len(plaka_text.replace(' ', '')) > 8:
+                        plaka_text = plaka_text[:8]  # Plaka metnini 8 karakterle sınırlar
+                    else:
+                        plaka_text = plaka_text[:10]  # Plaka metnini 10 karakterle sınırlar
+                    plaka_text_1 = plaka_text.replace(' ', '')
+                    print(plaka_text_1)# Plaka metnindeki boşlukları kaldır      
+                    # Plaka kontrolü ve kayıt
+                    if plaka_text_1 and len(plaka_text_1) >= 4:  # En az 4 karakter varsa işlem yap
+                        # İzin kontrolü
+                        izin_durumu = self.db.plaka_izin_kontrol(plaka_text_1)
+                        # Veritabanına kaydet
+                        plaka_id, self.son_izinli_tespit_zamani = self.db.plaka_kaydet(
+                            plaka_text_1, 
+                            izin_durumu, 
+                            self.son_izinli_tespit_zamani
+                        )
+                        
+                        # Görüntüye plaka ve durum bilgisini ekle
+                        durum_renk = (0, 255, 0) if izin_durumu else (0, 0, 255)  # Yeşil: İzinli, Kırmızı: İzinsiz
+                        durum_text = "IZINLI ve GIREBILIR" if izin_durumu else "IZINSIZ ve GIREMEZ"
+                        
+                        # Kutu çizme
+                        cv2.rectangle(frame, (x1, y1), (x2, y2), durum_renk, 2)
+                        # Plaka ve durum bilgisini gösterme
+                        cv2.putText(frame, f'{plaka_text} - {durum_text}', text_position,
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, durum_renk, 2)
 
-                # Özel karakterleri temizleme
-                plaka_text = re.sub(r'[^A-Za-z0-9 ]+', '', plaka_text)
-
-                # Plaka metnini kontrol etme
-                if plaka_text.startswith('8'):
-                    plaka_text = '3' + plaka_text[1:]  # Plaka metnini düzeltir
-
-                # Plaka metnini gösterme
-                text_position = (x1-5, y1-10)  # Plaka metninin konumunu ayarlar
-                if text_position[1] < 0:
-                    text_position = (x1+15, y1 + 20)  # Eğer metin üstte kalıyorsa, aşağıya kaydır
-                # Plaka metnini kontrol etme ve düzeltme
-                if len(plaka_text.split()) == 3:  # Eğer plaka metni 3 parçadan oluşuyorsa
-                    parts = plaka_text.split()  # Plaka metnini parçalara ayırır
-                    # 1. bölümdeki sayıları kontrol et
-                    parts[0] = parts[0].replace('B', '8').replace('I', '1').replace('O', '0').replace('S', '5').replace('h', '4')  # Karakter düzeltmeleri yapar
-                    # 2. bölümdeki harfleri kontrol et
-                    parts[1] = parts[1].replace('8', 'B').replace('1', 'I').replace('0', 'O').replace('5', 'S').replace('4', 'H')  # Karakter düzeltmeleri yapar
-                    # 3. bölümdeki sayıları kontrol et
-                    parts[2] = parts[2].replace('B', '8').replace('I', '1').replace('O', '0').replace('S', '5').replace('h', '4')  # Karakter düzeltmeleri yapar
-                    # Düzgün plaka metnini birleştir
-                    plaka_text = ' '.join(parts)  # Plaka metnini birleştirir
-
-                # Plaka metnini boşluk karakteri hariç 8 karakterden azsa, 10 karakter ile sınırlama
-                if len(plaka_text.replace(' ', '')) > 8:
-                    plaka_text = plaka_text[:8]  # Plaka metnini 8 karakterle sınırlar
-                else:
-                    plaka_text = plaka_text[:10]  # Plaka metnini 10 karakterle sınırlar
-
-                # Kutu çizme
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 1)  # Tespit edilen plaka bölgesinin etrafına kutu çizer
-                # Güven skorunu gösterme
-                cv2.putText(frame, f'{plaka_text}', text_position,
-                           cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255),2)  # Plaka metnini görüntüye yazar
-                # Plaka metnindeki boşlukları kaldır
-                plaka_text = plaka_text.replace(' ', '')  # Plaka metnindeki boşlukları kaldır
         # Görüntüyü yeniden boyutlandırma
         frame = cv2.resize(frame, (600, 600))  # Görüntüyü yeniden boyutlandırır
         
@@ -238,12 +330,16 @@ class PlakaTespitTest:
         output_path = os.path.join(output_dir, f"sonuc_{os.path.basename(image_path)}")  # Çıktı dosya yolunu oluşturur
         cv2.imwrite(output_path, image)  # İşlenmiş görüntüyü kaydeder
         
-        # messagebox.showinfo("Bilgi", 
-        #                   f"Tespit edilen plaka sayısı: {plaka_sayisi}\n"
-        #                   f"Sonuç kaydedildi: {output_path}")
-        
         cv2.waitKey(0)  # Kullanıcı bir tuşa basana kadar bekler
         cv2.destroyAllWindows()  # Tüm pencereleri kapatır
+
+    def __del__(self):
+        """Sınıf yok edildiğinde veritabanı bağlantısını kapat"""
+        if hasattr(self, 'cursor') and self.cursor:
+            self.cursor.close()
+        if hasattr(self, 'conn') and self.conn:
+            self.conn.close()
+            print("Veritabanı bağlantısı kapatıldı.")
 
 if __name__ == "__main__":
     app = PlakaTespitTest()  # Uygulamayı başlat 
