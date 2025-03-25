@@ -5,9 +5,8 @@ import tkinter as tk  # Tkinter kütüphanesini GUI oluşturmak için kullanır
 from tkinter import filedialog, messagebox  # Dosya diyalogları ve mesaj kutuları için kullanılır
 import os  # Dosya ve dizin işlemleri için kullanılır
 import joblib  # Modeli kaydetmek ve yüklemek için kullanılır
-import pytesseract  # OCR işlemleri için kullanılır
+from paddleocr import PaddleOCR  # OCR işlemleri için PaddleOCR kullanılıyor
 import re  # Regüler ifadeler için kullanılır
-from datetime import datetime  # Tarih işlemleri için kullanılır
 from db_operations import PlakaTespitDB  # Yeni sınıfı içe aktar
 
 # Bu dosya, plaka tespit modelinin test edilmesi için kullanılır. Test verileri ile modelin doğruluğunu kontrol eder.
@@ -23,6 +22,7 @@ class PlakaTespitTest:
         Sınıfın başlangıç ayarlarını yapar.
         - Veritabanı bağlantısını kurar
         - YOLO modelini yükler
+        - PaddleOCR modelini yükler
         - Arayüzü oluşturur
         """
         # Veritabanı işlemleri için sınıfı başlat
@@ -35,9 +35,14 @@ class PlakaTespitTest:
         except Exception as e:
             print(f"Model yüklenirken hata oluştu: {e}")  # Hata durumunda mesaj gösterir
             return
-
-        # Random Forest modelini yükleme
-        # self.model_rf = joblib.load('random_forest_model.pkl')  # Eğitilmiş Random Forest modelini yükler
+            
+        # PaddleOCR modelini yükleme
+        try:
+            self.ocr = PaddleOCR(use_angle_cls=True, lang='en')  # PaddleOCR modelini yükler
+            print("PaddleOCR modeli başarıyla yüklendi.")  # Modelin başarıyla yüklendiğini belirtir
+        except Exception as e:
+            print(f"PaddleOCR modeli yüklenirken hata oluştu: {e}")  # Hata durumunda mesaj gösterir
+            return
 
         # Son izinli plaka tespitinin zamanını tut
         self.son_izinli_tespit_zamani = 0
@@ -106,8 +111,8 @@ class PlakaTespitTest:
         metin = re.sub(r'[^A-Za-z0-9 ]+', '', metin)
         
         # 8 ile başlıyorsa 3 ile değiştir
-        if metin.startswith('8'):
-            metin = '3' + metin[1:]
+        # if metin.startswith('8'):
+        #     metin = '3' + metin[1:]
         
         # Plaka formatını düzelt
         if len(metin.split()) == 3:
@@ -146,25 +151,34 @@ class PlakaTespitTest:
                 # Koordinatları alma
                 x1, y1, x2, y2 = box.xyxy[0]  # Kutunun koordinatlarını alır
                 x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)  # Koordinatları tam sayıya çevirir
-                conf = float(box.conf[0])  # Güven skorunu alır
                 
                 # Plaka bölgesini kesme
                 plaka_region = frame[y1:y2, x1:x2]  # Plaka bölgesini keser
 
-                # OCR ile metni okuma
-                plaka_text = pytesseract.image_to_string(plaka_region, config='--psm 8')  # Plaka metnini okur
+                # PaddleOCR ile metni okuma
+                try:
+                    ocr_result = self.ocr.ocr(plaka_region, cls=True)
+                    
+                    # OCR sonuçlarını kontrol et
+                    if ocr_result and len(ocr_result) > 0 and len(ocr_result[0]) > 0:
+                        plaka_text = ocr_result[0][0][1][0]  # Tespit edilen metni al
+                    else:
+                        plaka_text = ""
+                except Exception as e:
+                    print(f"OCR işlemi sırasında hata: {e}")
+                    plaka_text = ""
 
                 # Plaka metnini düzenleme
                 plaka_text = self.plaka_metni_duzenle(plaka_text)
-                plaka_text_sade = plaka_text.replace(' ', '')
-                print(plaka_text_sade)# Plaka metnindeki boşlukları kaldır      
+                plaka_text = plaka_text.replace(' ', '')  # Plaka metnindeki boşlukları kaldır      
+                
                 # Plaka kontrolü ve kayıt
-                if plaka_text_sade and len(plaka_text_sade) >= 4:  # En az 4 karakter varsa işlem yap
+                if plaka_text and len(plaka_text) >= 4:  # En az 4 karakter varsa işlem yap
                     # İzin kontrolü
-                    izin_durumu = self.db.plaka_izin_kontrol(plaka_text_sade)
+                    izin_durumu = self.db.plaka_izin_kontrol(plaka_text)
                     # Veritabanına kaydet
                     plaka_id, self.son_izinli_tespit_zamani = self.db.plaka_kaydet(
-                        plaka_text_sade, 
+                        plaka_text, 
                         izin_durumu, 
                         self.son_izinli_tespit_zamani
                     )
@@ -175,49 +189,14 @@ class PlakaTespitTest:
                     
                     # Kutu çizme
                     cv2.rectangle(frame, (x1, y1), (x2, y2), durum_renk, 2)
+                    
                     # Plaka ve durum bilgisini gösterme
                     text_position = (x1-5, y1-10)  # Plaka metninin konumunu ayarlar
                     if text_position[1] < 0:
                         text_position = (x1+15, y1 + 20)  # Eğer metin üstte kalıyorsa, aşağıya kaydır
-                    # Plaka metnini kontrol etme ve düzeltme
-                    if len(plaka_text.split()) == 3:  # Eğer plaka metni 3 parçadan oluşuyorsa
-                        parts = plaka_text.split()  # Plaka metnini parçalara ayırır
-                        # 1. bölümdeki sayıları kontrol et
-                        parts[0] = parts[0].replace('B', '8').replace('I', '1').replace('O', '0').replace('S', '5').replace('h', '4')  # Karakter düzeltmeleri yapar
-                        # 2. bölümdeki harfleri kontrol et
-                        parts[1] = parts[1].replace('8', 'B').replace('1', 'I').replace('0', 'O').replace('5', 'S').replace('4', 'H')  # Karakter düzeltmeleri yapar
-                        # 3. bölümdeki sayıları kontrol et
-                        parts[2] = parts[2].replace('B', '8').replace('I', '1').replace('O', '0').replace('S', '5').replace('h', '4')  # Karakter düzeltmeleri yapar
-                        # Düzgün plaka metnini birleştir
-                        plaka_text = ' '.join(parts)  # Plaka metnini birleştirir
-
-                    # Plaka metnini boşluk karakteri hariç 8 karakterden azsa, 10 karakter ile sınırlama
-                    if len(plaka_text.replace(' ', '')) > 8:
-                        plaka_text = plaka_text[:8]  # Plaka metnini 8 karakterle sınırlar
-                    else:
-                        plaka_text = plaka_text[:10]  # Plaka metnini 10 karakterle sınırlar
-                    plaka_text_1 = plaka_text.replace(' ', '')
-                    print(plaka_text_1)# Plaka metnindeki boşlukları kaldır      
-                    # Plaka kontrolü ve kayıt
-                    if plaka_text_1 and len(plaka_text_1) >= 4:  # En az 4 karakter varsa işlem yap
-                        # İzin kontrolü
-                        izin_durumu = self.db.plaka_izin_kontrol(plaka_text_1)
-                        # Veritabanına kaydet
-                        plaka_id, self.son_izinli_tespit_zamani = self.db.plaka_kaydet(
-                            plaka_text_1, 
-                            izin_durumu, 
-                            self.son_izinli_tespit_zamani
-                        )
-                        
-                        # Görüntüye plaka ve durum bilgisini ekle
-                        durum_renk = (0, 255, 0) if izin_durumu else (0, 0, 255)  # Yeşil: İzinli, Kırmızı: İzinsiz
-                        durum_text = "IZINLI ve GIREBILIR" if izin_durumu else "IZINSIZ ve GIREMEZ"
-                        
-                        # Kutu çizme
-                        cv2.rectangle(frame, (x1, y1), (x2, y2), durum_renk, 2)
-                        # Plaka ve durum bilgisini gösterme
-                        cv2.putText(frame, f'{plaka_text} - {durum_text}', text_position,
-                                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, durum_renk, 2)
+                    
+                    cv2.putText(frame, f'{plaka_text} - {durum_text}', text_position,
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.5, durum_renk, 2)
 
         # Görüntüyü yeniden boyutlandırma
         frame = cv2.resize(frame, (600, 600))  # Görüntüyü yeniden boyutlandırır

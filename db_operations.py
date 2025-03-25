@@ -96,8 +96,8 @@ class PlakaTespitDB:
             # Eğer izinli plaka ise son tespit zamanını güncelle
             yeni_son_tespit_zamani = simdiki_zaman if durum else son_izinli_tespit_zamani
             
-            if durum:
-                print(f"İzinli plaka tespit edildi. Sonraki 15 saniye kayıt yapılmayacak.")
+            # if durum:
+            #     print(f"İzinli plaka tespit edildi. Sonraki 15 saniye kayıt yapılmayacak.")
             
             print(f"Plaka başarıyla kaydedildi. ID: {plaka_id}")
             return plaka_id, yeni_son_tespit_zamani
