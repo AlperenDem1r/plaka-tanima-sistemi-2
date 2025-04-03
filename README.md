@@ -7,7 +7,7 @@ Bu proje, fotoğraflardaki araba plakalarını tespit edip, metin olarak okumak 
 - OpenCV
 - Numpy
 - Scikit-learn
-- PaddleOCR
+- PaddleOCR veya TesseractOCR
 - Ultralytics YOLO
 - PostgreSQL
 
