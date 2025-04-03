@@ -7,11 +7,13 @@ Bu proje, fotoğraflardaki araba plakalarını tespit edip, metin olarak okumak 
 - OpenCV
 - Numpy
 - Scikit-learn
-- Tesseract OCR
-- Ultralytics YOLO  # Nesne tespiti için kullanılan YOLO modelidir.
+- PaddleOCR
+- Ultralytics YOLO
+- PostgreSQL
 
 ## Proje Yapısı
-- **`plaka_tespit_test.py`**: Plaka tespit modelinin test edilmesi için kullanılan dosya.
+- **`plaka_tespit_test.py`**: Plaka tespit modelinin test edilmesi için kullanılan dosya. Kamera, video ve fotoğraf üzerinde plaka tespiti yapabilir.
+- **`db_operations.py`**: Veritabanı işlemleri için kullanılan dosya. İzinli plaka kontrolü ve plaka kayıt işlemlerini yapar.
 - **`train.py`**: Plaka tespit modelinin eğitimini gerçekleştiren dosya.
 - **`veri_artirma.py`**: Eğitim verilerini artırmak için kullanılan dosya.
 - **`split_dataset.py`**: Veri setini eğitim, doğrulama ve test setlerine ayıran dosya.
@@ -22,15 +24,29 @@ Bu proje, fotoğraflardaki araba plakalarını tespit edip, metin olarak okumak 
    ```bash
    pip install -r requirements.txt
    ```
-2. Eğitim verilerinizi hazırlayın ve `karakter-veriseti-artirilm` dizinine yerleştirin.
-3. Modeli eğitmek için `train.py` dosyasını çalıştırın:
+2. PostgreSQL veritabanını kurun ve aşağıdaki tabloları oluşturun:
+   - `izinli_plakalar`: İzinli araçların plakalarını ve izin tarihlerini içeren tablo
+   - `plakalar`: Tespit edilen plakaların kaydedildiği tablo
+
+3. Eğitim verilerinizi hazırlayın ve `karakter-veriseti-artirilm` dizinine yerleştirin.
+
+4. Modeli eğitmek için `train.py` dosyasını çalıştırın:
    ```bash
    python train.py
    ```
-4. Eğitilen modeli test etmek için `plaka_tespit_test.py` dosyasını çalıştırın:
+
+5. Eğitilen modeli test etmek için `plaka_tespit_test.py` dosyasını çalıştırın:
    ```bash
    python plaka_tespit_test.py
    ```
+
+## Plaka Tespit ve OCR İşlemi
+
+Proje iki ana adımdan oluşmaktadır:
+
+1. **Plaka Tespiti**: YOLO (You Only Look Once) derin öğrenme modeli kullanılarak görüntüdeki plaka konumları tespit edilir.
+2. **Plaka Metni Okuma**: Tespit edilen plaka bölgesinden PaddleOCR kullanılarak metin çıkarılır.
+3. **Plaka Doğrulama**: Okunan plaka metni düzenlenir ve veritabanında izin kontrolü yapılır.
 
 ## Veri Seti
 Proje, farklı açılardan ve mekanlardan çekilmiş araba fotoğraflarını içeren bir veri seti kullanmaktadır. Veri seti, etiketleme araçları kullanılarak etiketlenmiştir. Plaka tespiti için kullanılan etiketleme formatı, YOLO modelinin gereksinimlerine uygun olarak aşağıdaki gibi olmalıdır:
@@ -49,6 +65,22 @@ Proje, farklı açılardan ve mekanlardan çekilmiş araba fotoğraflarını iç
 ```
 0 0.5 0.5 0.2 0.1
 ```
+
+## Veritabanı Yapısı
+
+Proje iki ana veritabanı tablosu kullanmaktadır:
+
+1. **izinli_plakalar**: İzinli araçların bilgilerini içerir
+   - `plaka`: Plakanın kendisi (Primary Key)
+   - `aktif`: İznin aktif olup olmadığı (Boolean)
+   - `baslangic_tarih`: İzin başlangıç tarihi
+   - `bitis_tarih`: İzin bitiş tarihi
+
+2. **plakalar**: Tespit edilen tüm plakaların kaydını tutar
+   - `id`: Otomatik artan benzersiz kimlik
+   - `plaka`: Tespit edilen plaka metni
+   - `durum`: İzinli olup olmadığı (Boolean)
+   - `tespit_zamani`: Plakanın ne zaman tespit edildiği
 
 ## Katkıda Bulunma
 Herhangi bir katkıda bulunmak isterseniz, lütfen bir pull request oluşturun.
